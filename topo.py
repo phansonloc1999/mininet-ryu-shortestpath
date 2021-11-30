@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from logging import Formatter
 from mininet.net import Mininet
 from mininet.node import Controller, RemoteController, OVSController
 from mininet.node import CPULimitedHost, Host, Node
@@ -68,6 +69,22 @@ def myNetwork():
     net.get('s7').start([c0])
 
     info( '*** Post configure switches and hosts\n')
+
+    h1.setARP('10.0.0.2', h2.MAC('h2-eth0'))
+    h1.setARP('10.0.0.3', h3.MAC('h3-eth0'))
+    h1.setARP('10.0.0.4', h4.MAC('h4-eth0'))
+
+    h2.setARP('10.0.0.1', h1.MAC('h1-eth0'))
+    h2.setARP('10.0.0.3', h3.MAC('h3-eth0'))
+    h2.setARP('10.0.0.4', h4.MAC('h4-eth0'))
+
+    h3.setARP('10.0.0.1', h1.MAC('h1-eth0'))
+    h3.setARP('10.0.0.2', h2.MAC('h2-eth0'))
+    h3.setARP('10.0.0.4', h4.MAC('h4-eth0'))
+
+    h3.setARP('10.0.0.1', h1.MAC('h1-eth0'))
+    h3.setARP('10.0.0.2', h2.MAC('h2-eth0'))
+    h3.setARP('10.0.0.4', h4.MAC('h4-eth0'))
 
     CLI(net)
     net.stop()

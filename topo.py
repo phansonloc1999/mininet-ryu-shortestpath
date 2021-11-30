@@ -84,7 +84,7 @@ def myNetwork():
 
     h4.setARP('10.0.0.1', h1.MAC('h1-eth0'))
     h4.setARP('10.0.0.2', h2.MAC('h2-eth0'))
-    h4.setARP('10.0.0.3', h4.MAC('h3-eth0'))
+    h4.setARP('10.0.0.3', h3.MAC('h3-eth0'))
 
     CLI(net)
     net.stop()

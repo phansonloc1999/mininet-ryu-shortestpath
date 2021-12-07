@@ -209,6 +209,7 @@ class ArpHandler(app_manager.RyuApp):
                 print(str(sw) + ' ->', end=' ')
             print(ip_dst)
         if len(path) == 1:
+            # Dst & src hosts are connected to the same datapath
             dp = self.get_datapath(src_dpid)
             actions = [dp.ofproto_parser.OFPActionOutput(to_port_no)]
             self.add_flow(dp, 10, to_dst_match, pre_actions+actions)

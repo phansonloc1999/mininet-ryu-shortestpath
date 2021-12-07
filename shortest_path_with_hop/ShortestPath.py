@@ -24,7 +24,7 @@ class ShortestPath(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(ShortestPath, self).__init__(*args, **kwargs)
-        self.arp_handler = kwargs["ArpHandler"]
+        self.arp_handler : ArpHandler.ArpHandler = kwargs["ArpHandler"]
         self.datapaths = {}
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
@@ -91,19 +91,20 @@ class ShortestPath(app_manager.RyuApp):
     def arp_forwarding(self, msg, src_ip, dst_ip):
         """ Send ARP packet to the destination host,
             if the dst host record is existed,
-            else, flow it to the unknow access port.
+            else, flood it to the unknown access port.
         """
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
         result = self.arp_handler.get_host_location(dst_ip)
-        if result:  # host record in access table.
-            datapath_dst, out_port = result[0], result[1]
+        if result: # destination host ip is recorded in arp handler.access_table
+            datapath_dst, out_port = result[0], result[1] # datapath id of dest and out port
             datapath = self.datapaths[datapath_dst]
             out = self._build_packet_out(datapath, ofproto.OFP_NO_BUFFER,
                                          ofproto.OFPP_CONTROLLER,
                                          out_port, msg.data)
+            # Controller sends ARP packet out from datapath via out_port port
             datapath.send_msg(out)
         else:
             self.flood(msg)
@@ -129,8 +130,8 @@ class ShortestPath(app_manager.RyuApp):
 
     def flood(self, msg):
         """
-            Flood ARP packet to the access port
-            which has no record of host.
+            Flood ARP packet to all the access ports
+            which has no record of any host.
         """
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -155,14 +156,17 @@ class ShortestPath(app_manager.RyuApp):
         parser = datapath.ofproto_parser
         in_port = msg.match['in_port']
 
+        # Get pair of source and destination switches and the destination port
         result = self.get_sw(datapath.id, in_port, ip_src, ip_dst)
         if result:
             src_sw, dst_sw, to_dst_port = result[0], result[1], result[2]
-            if dst_sw:
-                # Path has already calculated, just get it.
+            if dst_sw: # If destination switch exists
+                # Create an OFPMatch to add flow entries to datapaths in the path later
                 to_dst_match = parser.OFPMatch(
                     eth_type = eth_type, ipv4_dst = ip_dst)
+                # calculate shortest path and add flow entries to every datapaths in the path
                 port_no = self.arp_handler.set_shortest_path(ip_src, ip_dst, src_sw, dst_sw, to_dst_port, to_dst_match)
+                # send the ipv4 packet out after shortest path is installed on datapaths
                 self.send_packet_out(datapath, msg.buffer_id, in_port, port_no, msg.data)
         return
 
@@ -174,7 +178,9 @@ class ShortestPath(app_manager.RyuApp):
         dst_sw = None
         dst_port = None
 
+        # Get the key (dpid, port) from access table that connects to host with the ip "src"
         src_location = self.arp_handler.get_host_location(src)
+        # If in_port is an access port of dpid
         if in_port in self.arp_handler.access_ports[dpid]:
             if (dpid,  in_port) == src_location:
                 src_sw = src_location[0]
@@ -183,8 +189,8 @@ class ShortestPath(app_manager.RyuApp):
 
         dst_location = self.arp_handler.get_host_location(dst)
         if dst_location:
-            dst_sw = dst_location[0]
-            dst_port = dst_location[1]
+            dst_sw = dst_location[0] # destination dpid
+            dst_port = dst_location[1] # destination port connects to host
         return src_sw, dst_sw, dst_port
 
     def send_packet_out(self, datapath, buffer_id, src_port, dst_port, data):

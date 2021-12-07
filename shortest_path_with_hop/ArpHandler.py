@@ -56,7 +56,7 @@ class ArpHandler(app_manager.RyuApp):
         
         self.create_interior_links(links)
         self.create_access_ports()
-        self.get_graph()
+        self.add_graph_edges()
 
     def create_port_map(self, switch_list):
         for sw in switch_list:
@@ -92,7 +92,7 @@ class ArpHandler(app_manager.RyuApp):
             interior_port = self.interior_ports[sw]
             self.access_ports[sw] = all_port_table - interior_port
 
-    def get_graph(self):
+    def add_graph_edges(self):
         link_list = topo_api.get_all_link(self)
         for link in link_list:
             src_dpid = link.src.dpid

@@ -48,21 +48,28 @@ class ArpHandler(app_manager.RyuApp):
         switch_list = get_all_switch(self)
         # print switch_list
         self.create_port_map(switch_list)
+        
+        # List dpid of all switches
         self.switches = list(self.switch_port_table.keys())
+
         links = get_link(self.topology_api_app, None)
+        
         self.create_interior_links(links)
         self.create_access_ports()
         self.get_graph()
 
     def create_port_map(self, switch_list):
         for sw in switch_list:
-            dpid = sw.dp.id
+            dpid = sw.dp.id # Get datapath id
             self.graph.add_node(dpid)
             self.dps[dpid] = sw.dp
+
+            # Initialize default {} for each switch in these dicitionaries
             self.switch_port_table.setdefault(dpid, set())
             self.interior_ports.setdefault(dpid, set())
             self.access_ports.setdefault(dpid, set())
 
+            # Add all active connected port to switch_port_table
             for p in sw.ports:
                 self.switch_port_table[dpid].add(p.port_no)
 

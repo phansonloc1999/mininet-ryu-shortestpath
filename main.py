@@ -7,8 +7,8 @@ from ryu.cmd import manager
 
 
 def main():
-    sys.argv.append('./ShortestPath.py')
-    sys.argv.append('--verbose')
+    sys.argv.append('./shortest_path_with_hop/ShortestPath.py')
+    # sys.argv.append('--verbose')
     sys.argv.append('--enable-debugger')
     sys.argv.append('--observe-links')
     manager.main()

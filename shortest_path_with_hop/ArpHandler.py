@@ -26,7 +26,7 @@ class ArpHandler(app_manager.RyuApp):
         super(ArpHandler, self).__init__(*args, **kwargs)
         self.topology_api_app = self
         self.link_to_port = {}       # (src_dpid,dst_dpid)->(src_port,dst_port)
-        self.access_table = {}       # {(sw,port) :[host1_ip]}
+        self.access_table = {}       # {(sw,port) :[host1_ip]} Map switch id and its port to the host ip
         self.switch_port_table = {}  # all ports of each switch
         self.access_ports = {}       # ports that connect to hosts of each switch
         self.interior_ports = {}     # ports that connect to other switches of each switch
@@ -141,21 +141,27 @@ class ArpHandler(app_manager.RyuApp):
             Register access host info into access table.
         """
         # print "register " + ip
+        # If in_port is one of the ports that connects hosts to the switch with this dpid
         if in_port in self.access_ports[dpid]:
+            # If key (dpid, inport) in self.access_table
             if (dpid, in_port) in self.access_table:
+                # If (dpid, in_port) -> (ip, mac) already assigned, return
                 if self.access_table[(dpid, in_port)] == (ip, mac):
                     return
                 else:
+                    # If not, assign it
                     self.access_table[(dpid, in_port)] = (ip, mac)
                     return
             else:
+                # If key (dpid, inport) not in self.access_table, create it 
                 self.access_table.setdefault((dpid, in_port), None)
+
                 self.access_table[(dpid, in_port)] = (ip, mac)
                 return
 
     def get_host_location(self, host_ip):
         """
-            Get host location info:(datapath, port) according to host ip.
+            Get (dpid, port) key that has a value = host_ip in access_table.
         """
         for key in list(self.access_table.keys()):
             if self.access_table[key][0] == host_ip:
@@ -170,6 +176,9 @@ class ArpHandler(app_manager.RyuApp):
         return self.link_to_port
 
     def get_datapath(self, dpid):
+        """
+            Get datapath object in self.dps
+        """
         if dpid not in self.dps:
             switch = topo_api.get_switch(self, dpid)[0]
             self.dps[dpid] = switch.dp
@@ -186,6 +195,7 @@ class ArpHandler(app_manager.RyuApp):
                           pre_actions=[]
                           ):
         if nx.has_path(self.graph, src_dpid, dst_dpid):
+            # path is a list of datapath id
             path = nx.shortest_path(self.graph, src_dpid, dst_dpid)
         else:
             path = None
@@ -204,19 +214,26 @@ class ArpHandler(app_manager.RyuApp):
             self.add_flow(dp, 10, to_dst_match, pre_actions+actions)
             port_no = to_port_no
         else:
+            # Install correct flows for all datapaths presents in path
             self.install_path(to_dst_match, path, pre_actions)
             dst_dp = self.get_datapath(dst_dpid)
             actions = [dst_dp.ofproto_parser.OFPActionOutput(to_port_no)]
             self.add_flow(dst_dp, 10, to_dst_match, pre_actions+actions)
-            port_no = self.graph[path[0]][path[1]]['src_port']
+            # Get src_port attribute that connects the first datapath to the second datapath
+            # presents in path
+            port_no = self.graph[path[0]][path[1]]['src_port'] 
 
         return port_no
 
     def install_path(self, match, path, pre_actions=[]):
+        """
+            Install correct flow for every datapath (switch) presents in the path parameter
+        """
         for index, dpid in enumerate(path[:-1]):
             port_no = self.graph[path[index]][path[index + 1]]['src_port']
             dp = self.get_datapath(dpid)
             actions = [dp.ofproto_parser.OFPActionOutput(port_no)]
+            # add a flow with 
             self.add_flow(dp, 10, match, pre_actions+actions)
 
     def add_flow(self, dp, p, match, actions, idle_timeout=0, hard_timeout=0):

@@ -1,5 +1,6 @@
 # author: ParanoiaUPC
 # email: 757459307@qq.com
+from matplotlib import pyplot as plt
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
@@ -38,6 +39,8 @@ class ArpHandler(app_manager.RyuApp):
     def _discover(self):
         while True:
             self.get_topology(None)
+            # nx.draw_networkx(self.graph, pos = nx.spring_layout(self.graph), )
+            # plt.show()
             hub.sleep(1)
 
     def get_topology(self, ev):
@@ -47,7 +50,11 @@ class ArpHandler(app_manager.RyuApp):
         # print "get topo"
         switch_list = get_all_switch(self)
         # print switch_list
-        self.create_port_map(switch_list)
+
+        # For each datapath(switch) in switch_list, add a key using switch id and 
+        # initial value of {} in self.switch_port_table, self.interior_ports,
+        # self.access_ports dictionaries
+        self.init_port_dicts(switch_list)
         
         # List dpid of all switches
         self.switches = list(self.switch_port_table.keys())
@@ -55,10 +62,10 @@ class ArpHandler(app_manager.RyuApp):
         links = get_link(self.topology_api_app, None)
         
         self.create_interior_links(links)
-        self.create_access_ports()
-        self.add_graph_edges()
+        self.get_access_ports()
+        self.add_graph_edges_from_links()
 
-    def create_port_map(self, switch_list):
+    def init_port_dicts(self, switch_list):
         for sw in switch_list:
             dpid = sw.dp.id # Get datapath id
             self.graph.add_node(dpid)
@@ -74,6 +81,9 @@ class ArpHandler(app_manager.RyuApp):
                 self.switch_port_table[dpid].add(p.port_no)
 
     def create_interior_links(self, link_list):
+        """
+            Create entries with value (src dpid, dst dpid) in self.interior_ports
+        """
         for link in link_list:
             src = link.src
             dst = link.dst
@@ -86,13 +96,13 @@ class ArpHandler(app_manager.RyuApp):
             if link.dst.dpid in self.switches:
                 self.interior_ports[link.dst.dpid].add(link.dst.port_no)
 
-    def create_access_ports(self):
+    def get_access_ports(self):
         for sw in self.switch_port_table:
             all_port_table = self.switch_port_table[sw]
             interior_port = self.interior_ports[sw]
             self.access_ports[sw] = all_port_table - interior_port
 
-    def add_graph_edges(self):
+    def add_graph_edges_from_links(self):
         link_list = topo_api.get_all_link(self)
         for link in link_list:
             src_dpid = link.src.dpid

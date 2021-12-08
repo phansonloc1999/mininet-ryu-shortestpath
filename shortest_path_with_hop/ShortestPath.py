@@ -18,6 +18,7 @@ import ArpHandler
 class ShortestPath(app_manager.RyuApp):
 
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
+    # Runs a background thread called ArpHandler
     _CONTEXTS = {
         "ArpHandler": ArpHandler.ArpHandler
     }
@@ -27,6 +28,7 @@ class ShortestPath(app_manager.RyuApp):
         self.arp_handler : ArpHandler.ArpHandler = kwargs["ArpHandler"]
         self.datapaths = {}
 
+    # After handshaking with controller, install table-miss flow entry to datapath
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -41,19 +43,19 @@ class ShortestPath(app_manager.RyuApp):
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
-
+        
         ignore_match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IPV6)
         ignore_actions = []
         self.add_flow(datapath, 65534, ignore_match, ignore_actions)
 
-    def add_flow(self, dp, p, match, actions, idle_timeout=0, hard_timeout=0):
+    def add_flow(self, dp, priority, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = dp.ofproto
         parser = dp.ofproto_parser
 
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                              actions)]
 
-        mod = parser.OFPFlowMod(datapath=dp, priority=p,
+        mod = parser.OFPFlowMod(datapath=dp, priority=priority,
                                 idle_timeout=idle_timeout,
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)

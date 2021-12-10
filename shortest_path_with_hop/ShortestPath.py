@@ -1,5 +1,3 @@
-# author: ParanoiaUPC
-# email: 757459307@qq.com
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
@@ -28,7 +26,7 @@ class ShortestPath(app_manager.RyuApp):
         self.arp_handler : ArpHandler.ArpHandler = kwargs["ArpHandler"]
         self.datapaths = {}
 
-    # After handshaking with controller, install table-miss flow entry to datapath
+    # After handshaking with controller, install table-miss flow entry to that datapath
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -42,13 +40,13 @@ class ShortestPath(app_manager.RyuApp):
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                           ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 0, match, actions)
+        self.add_flow_entry(datapath, 0, match, actions)
         
         ignore_match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IPV6)
         ignore_actions = []
-        self.add_flow(datapath, 65534, ignore_match, ignore_actions)
+        self.add_flow_entry(datapath, 65534, ignore_match, ignore_actions)
 
-    def add_flow(self, dp, priority, match, actions, idle_timeout=0, hard_timeout=0):
+    def add_flow_entry(self, dp, priority, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = dp.ofproto
         parser = dp.ofproto_parser
 
@@ -65,7 +63,7 @@ class ShortestPath(app_manager.RyuApp):
     def _packet_in_handler(self, ev):
         '''
             In packet_in handler, we need to learn access_table by ARP.
-            Therefore, the first packet from UNKOWN host MUST be ARP.
+            Therefore, the first packet from UNKNOWN host MUST be ARP.
         '''
         msg = ev.msg
         datapath = msg.datapath
@@ -141,6 +139,7 @@ class ShortestPath(app_manager.RyuApp):
 
         for dpid in self.arp_handler.access_ports:
             for port in self.arp_handler.access_ports[dpid]:
+                # If (dpid, port) key not in (dpid, port): host_ip self.access_table
                 if (dpid, port) not in self.arp_handler.access_table.keys():
                     datapath = self.datapaths[dpid]
                     out = self._build_packet_out(

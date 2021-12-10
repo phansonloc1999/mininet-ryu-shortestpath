@@ -1,5 +1,3 @@
-# author: ParanoiaUPC
-# email: 757459307@qq.com
 from matplotlib import pyplot as plt
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -31,9 +29,9 @@ class ArpHandler(app_manager.RyuApp):
         self.switch_port_table = {}  # all ports of each switch
         self.access_ports = {}       # ports that connect to hosts of each switch
         self.interior_ports = {}     # ports that connect to other switches of each switch
-        self.graph = nx.DiGraph()
-        self.dps = {} # Datapaths
-        self.switches = None
+        self.graph = nx.DiGraph()    # networkx directed graph used to find the shortest path
+        self.dps = {}                # Datapaths
+        self.switches = None         # List of switches
         self.discover_thread = hub.spawn(self._discover)
 
     def _discover(self):
@@ -45,14 +43,14 @@ class ArpHandler(app_manager.RyuApp):
 
     def get_topology(self, ev):
         """
-            Get topology info
+            Discover the current network topology
         """
         # print "get topo"
         switch_list = get_all_switch(self)
         # print switch_list
 
-        # For each datapath(switch) in switch_list, add a key using switch id and 
-        # initial value of {} in self.switch_port_table, self.interior_ports,
+        # For each datapath(switch) in switch_list, add a key switch id and 
+        # initial value {} in self.switch_port_table, self.interior_ports,
         # self.access_ports dictionaries
         self.init_port_dicts(switch_list)
         
@@ -135,12 +133,14 @@ class ArpHandler(app_manager.RyuApp):
         if ip_pkt:
             src_ipv4 = ip_pkt.src
             src_mac = eth_pkt.src
+            # 0.0.0.0 src ip in DHCPDiscover
             if src_ipv4 != '0.0.0.0' and src_ipv4 != '255.255.255.255':
                 self.register_access_info(datapath.id, in_port, src_ipv4, src_mac)
+            else:
+                print()
 
         if arp_pkt:
             arp_src_ip = arp_pkt.src_ip
-            arp_dst_ip = arp_pkt.dst_ip
             mac = arp_pkt.src_mac
 
             # Record the access info
@@ -222,14 +222,14 @@ class ArpHandler(app_manager.RyuApp):
             # Dst & src hosts are connected to the same datapath
             dp = self.get_datapath(src_dpid)
             actions = [dp.ofproto_parser.OFPActionOutput(to_port_no)]
-            self.add_flow(dp, 10, to_dst_match, pre_actions+actions)
+            self.add_flow_entry(dp, 10, to_dst_match, pre_actions+actions)
             port_no = to_port_no
         else:
             # Install correct flows for all datapaths presents in path
             self.install_path(to_dst_match, path, pre_actions)
             dst_dp = self.get_datapath(dst_dpid)
             actions = [dst_dp.ofproto_parser.OFPActionOutput(to_port_no)]
-            self.add_flow(dst_dp, 10, to_dst_match, pre_actions+actions)
+            self.add_flow_entry(dst_dp, 10, to_dst_match, pre_actions+actions)
             # Get src_port attribute that connects the first datapath to the second datapath
             # presents in path
             port_no = self.graph[path[0]][path[1]]['src_port'] 
@@ -245,16 +245,16 @@ class ArpHandler(app_manager.RyuApp):
             dp = self.get_datapath(dpid)
             actions = [dp.ofproto_parser.OFPActionOutput(port_no)]
             # add a flow with 
-            self.add_flow(dp, 10, match, pre_actions+actions)
+            self.add_flow_entry(dp, 10, match, pre_actions+actions)
 
-    def add_flow(self, dp, p, match, actions, idle_timeout=0, hard_timeout=0):
+    def add_flow_entry(self, dp, priority, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = dp.ofproto
         parser = dp.ofproto_parser
 
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                              actions)]
 
-        mod = parser.OFPFlowMod(datapath=dp, priority=p,
+        mod = parser.OFPFlowMod(datapath=dp, priority=priority,
                                 idle_timeout=idle_timeout,
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)

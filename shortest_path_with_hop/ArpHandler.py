@@ -24,7 +24,7 @@ class ArpHandler(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(ArpHandler, self).__init__(*args, **kwargs)
         self.topology_api_app = self
-        self.link_to_port = {}       # (src_dpid,dst_dpid)->(src_port,dst_port)
+        self.link_to_port = {}       # (src_dpid,dst_dpid) -> (src_port,dst_port)
         self.access_table = {}       # {(sw,port) :[host1_ip]} Map switch id and its port to the host ip
         self.switch_port_table = {}  # all ports of each switch
         self.access_ports = {}       # ports that connect to hosts of each switch
@@ -59,15 +59,15 @@ class ArpHandler(app_manager.RyuApp):
 
         links = get_link(self.topology_api_app, None)
         
-        self.create_interior_links(links)
+        self.init_self_interior_ports(links)
         self.get_access_ports()
         self.add_graph_edges_from_links()
 
     def init_port_dicts(self, switch_list):
-        for sw in switch_list:
-            dpid = sw.dp.id # Get datapath id
+        for switch in switch_list:
+            dpid = switch.dp.id # Get datapath id
             self.graph.add_node(dpid)
-            self.dps[dpid] = sw.dp
+            self.dps[dpid] = switch.dp
 
             # Initialize default {} for each switch in these dicitionaries
             self.switch_port_table.setdefault(dpid, set())
@@ -75,10 +75,10 @@ class ArpHandler(app_manager.RyuApp):
             self.access_ports.setdefault(dpid, set())
 
             # Add all active connected port to switch_port_table
-            for p in sw.ports:
+            for p in switch.ports:
                 self.switch_port_table[dpid].add(p.port_no)
 
-    def create_interior_links(self, link_list):
+    def init_self_interior_ports(self, link_list):
         """
             Create entries with value (src dpid, dst dpid) in self.interior_ports
         """
@@ -95,10 +95,10 @@ class ArpHandler(app_manager.RyuApp):
                 self.interior_ports[link.dst.dpid].add(link.dst.port_no)
 
     def get_access_ports(self):
-        for sw in self.switch_port_table:
-            all_port_table = self.switch_port_table[sw]
-            interior_port = self.interior_ports[sw]
-            self.access_ports[sw] = all_port_table - interior_port
+        for sw_id in self.switch_port_table:
+            all_port_table = self.switch_port_table[sw_id]
+            interior_port = self.interior_ports[sw_id]
+            self.access_ports[sw_id] = all_port_table - interior_port
 
     def add_graph_edges_from_links(self):
         link_list = topo_api.get_all_link(self)

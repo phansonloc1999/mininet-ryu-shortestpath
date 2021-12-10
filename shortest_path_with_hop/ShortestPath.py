@@ -62,7 +62,7 @@ class ShortestPath(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         '''
-            In packet_in handler, we need to learn access_table by ARP.
+            In packet_in handler, we need to fill self.access_table by using ARP.
             Therefore, the first packet from UNKNOWN host MUST be ARP.
         '''
         msg = ev.msg
@@ -158,7 +158,7 @@ class ShortestPath(app_manager.RyuApp):
         in_port = msg.match['in_port']
 
         # Get pair of source and destination switches and the destination port
-        result = self.get_sw(datapath.id, in_port, ip_src, ip_dst)
+        result = self.get_src_dst_sw_pair(datapath.id, in_port, ip_src, ip_dst)
         if result:
             src_sw, dst_sw, to_dst_port = result[0], result[1], result[2]
             if dst_sw: # If destination switch exists
@@ -171,24 +171,24 @@ class ShortestPath(app_manager.RyuApp):
                 self.send_packet_out(datapath, msg.buffer_id, in_port, port_no, msg.data)
         return
 
-    def get_sw(self, dpid, in_port, src, dst):
+    def get_src_dst_sw_pair(self, dpid, in_port, ip_src, ip_dst):
         """
-            Get pair of source and destination switches.
+            Get a pair of source and destination switches.
         """
         src_sw = dpid
         dst_sw = None
         dst_port = None
 
         # Get the key (dpid, port) from access table that connects to host with the ip "src"
-        src_location = self.arp_handler.get_host_location(src)
+        src_location = self.arp_handler.get_host_location(ip_src) # src_location return value is (dpid, port)
         # If in_port is an access port of dpid
         if in_port in self.arp_handler.access_ports[dpid]:
             if (dpid,  in_port) == src_location:
-                src_sw = src_location[0]
-            else:
-                return None
+                src_sw = src_location[0] # src_sw = dpid
+            else: # src_location empty => src_ip not in access table
+                return None 
 
-        dst_location = self.arp_handler.get_host_location(dst)
+        dst_location = self.arp_handler.get_host_location(ip_dst)
         if dst_location:
             dst_sw = dst_location[0] # destination dpid
             dst_port = dst_location[1] # destination port connects to host

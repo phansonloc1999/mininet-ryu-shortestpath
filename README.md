@@ -1,5 +1,7 @@
 # mininet-ryu-shortestpath
 
+Source code reference: https://github.com/ParanoiaUPC/sdn_shortest_path
+
 ## How to use:
 
 ```

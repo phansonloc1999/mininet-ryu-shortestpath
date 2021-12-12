@@ -16,7 +16,7 @@ sudo ./topo.py
 
 ### Run controller
 ```
-ryu-manager shortest_path_with_hop --observe-links
+ryu-manager shortest_path_with_hop/ShortestPath.py --observe-links
 ```
 
 ### Test ping
